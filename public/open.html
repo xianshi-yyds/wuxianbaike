@@ -347,9 +347,23 @@ Error generating stack: `+a.message+`
             ? "http://localhost:3000/infinite-explore"
             : "/infinite-explore";
         const normalize = (value) => (value || "").replace(/\s+/g, " ").trim();
+        const exploreLabels = new Set([
+          "无限探索",
+          "Infinite Explore",
+          "Exploración infinita",
+          "無限探索",
+          "Exploration infinie",
+        ]);
+        const exploreCtaFragments = [
+          "开始自由探索",
+          "Start free exploration",
+          "Comenzar exploración libre",
+          "自由探索を始める",
+          "Commencer l'exploration libre",
+        ];
         const shouldOpenExplore = (label) =>
-          label === "无限探索" ||
-          label.includes("开始自由探索");
+          exploreLabels.has(label) ||
+          exploreCtaFragments.some((fragment) => label.includes(fragment));
 
         document.addEventListener(
           "click",
@@ -364,6 +378,385 @@ Error generating stack: `+a.message+`
           },
           true,
         );
+      })();
+    </script>
+    <script>
+      (() => {
+        const languageCodes = {
+          中文: "zh-CN",
+          English: "en-US",
+          Español: "es-ES",
+          日本語: "ja-JP",
+          Français: "fr-FR",
+        };
+
+        const text = {
+          "AI 无限百科": {
+            "en-US": "AI Infinite Encyclopedia",
+            "es-ES": "Enciclopedia Infinita AI",
+            "ja-JP": "AI 無限百科",
+            "fr-FR": "Encyclopédie Infinie IA",
+          },
+          "Visual Knowledge Atlas": {
+            "en-US": "Visual Knowledge Atlas",
+            "es-ES": "Atlas Visual del Conocimiento",
+            "ja-JP": "ビジュアル知識アトラス",
+            "fr-FR": "Atlas Visuel du Savoir",
+          },
+          "visual knowledge atlas": {
+            "en-US": "visual knowledge atlas",
+            "es-ES": "atlas visual del conocimiento",
+            "ja-JP": "ビジュアル知識アトラス",
+            "fr-FR": "atlas visuel du savoir",
+          },
+          "无限探索": {
+            "en-US": "Infinite Explore",
+            "es-ES": "Exploración infinita",
+            "ja-JP": "無限探索",
+            "fr-FR": "Exploration infinie",
+          },
+          "精选百科": {
+            "en-US": "Curated Encyclopedia",
+            "es-ES": "Enciclopedia seleccionada",
+            "ja-JP": "厳選百科",
+            "fr-FR": "Encyclopédie sélectionnée",
+          },
+          "自主学习": {
+            "en-US": "Self Learning",
+            "es-ES": "Aprendizaje autónomo",
+            "ja-JP": "自主学習",
+            "fr-FR": "Apprentissage autonome",
+          },
+          "百科编辑器": {
+            "en-US": "Encyclopedia Editor",
+            "es-ES": "Editor de enciclopedia",
+            "ja-JP": "百科エディター",
+            "fr-FR": "Éditeur encyclopédique",
+          },
+          "输入想法或图片": {
+            "en-US": "Enter an idea or image",
+            "es-ES": "Introduce una idea o imagen",
+            "ja-JP": "アイデアや画像を入力",
+            "fr-FR": "Entrez une idée ou une image",
+          },
+          "生成可点击的": {
+            "en-US": "Create a clickable",
+            "es-ES": "Crea un mapa visual",
+            "ja-JP": "クリックできる",
+            "fr-FR": "Créez une carte visuelle",
+          },
+          "视觉知识地图": {
+            "en-US": "visual knowledge map",
+            "es-ES": "de conocimiento cliquable",
+            "ja-JP": "視覚知識マップを生成",
+            "fr-FR": "de connaissance cliquable",
+          },
+          "输入一个想法或上传一张图片，": {
+            "en-US": "Enter an idea or upload an image,",
+            "es-ES": "Introduce una idea o sube una imagen,",
+            "ja-JP": "アイデアを入力するか画像をアップロードすると、",
+            "fr-FR": "Entrez une idée ou importez une image,",
+          },
+          "生成一张可点击、可讲解、可继续深入探索的 AI 视觉知识地图。": {
+            "en-US": "then create a clickable, explainable AI visual knowledge map that can keep expanding.",
+            "es-ES": "y crea un mapa visual de conocimiento con IA, clicable, explicable y ampliable.",
+            "ja-JP": "クリックでき、解説でき、さらに深く探索できる AI 視覚知識マップを生成します。",
+            "fr-FR": "puis créez une carte visuelle IA cliquable, explicable et approfondissable.",
+          },
+          "开始自由探索": {
+            "en-US": "Start free exploration",
+            "es-ES": "Comenzar exploración libre",
+            "ja-JP": "自由探索を始める",
+            "fr-FR": "Commencer l'exploration libre",
+          },
+          "浏览精选百科": {
+            "en-US": "Browse curated encyclopedia",
+            "es-ES": "Ver enciclopedia seleccionada",
+            "ja-JP": "厳選百科を見る",
+            "fr-FR": "Voir l'encyclopédie sélectionnée",
+          },
+          "进入知识探索": {
+            "en-US": "Enter knowledge exploration",
+            "es-ES": "Entrar a explorar conocimiento",
+            "ja-JP": "知識探索に入る",
+            "fr-FR": "Entrer dans l'exploration du savoir",
+          },
+          "青少年百科": {
+            "en-US": "Youth encyclopedia",
+            "es-ES": "Enciclopedia juvenil",
+            "ja-JP": "青少年百科",
+            "fr-FR": "Encyclopédie jeunesse",
+          },
+          "成人通识": {
+            "en-US": "General knowledge",
+            "es-ES": "Cultura general",
+            "ja-JP": "一般教養",
+            "fr-FR": "Culture générale",
+          },
+          "机构内容生产": {
+            "en-US": "Institutional content production",
+            "es-ES": "Producción de contenido institucional",
+            "ja-JP": "機関向けコンテンツ制作",
+            "fr-FR": "Production de contenu institutionnel",
+          },
+          "AI native knowledge content": {
+            "en-US": "AI native knowledge content",
+            "es-ES": "contenido de conocimiento nativo de IA",
+            "ja-JP": "AI ネイティブ知識コンテンツ",
+            "fr-FR": "contenu de savoir natif IA",
+          },
+          "让每一个问题，生成一张可继续探索的知识地图": {
+            "en-US": "Turn every question into a knowledge map that keeps expanding",
+            "es-ES": "Convierte cada pregunta en un mapa de conocimiento que sigue creciendo",
+            "ja-JP": "すべての問いを、探索し続けられる知識マップへ",
+            "fr-FR": "Transformez chaque question en carte de savoir qui continue de s'ouvrir",
+          },
+          "AI 无限百科是一种面向不同人群和场景的可视化知识探索引擎。它可以服务青少年兴趣学习、成人通识探索，也可以帮助机构把课程、展览、研学路线和专业知识加工成可交互、可讲解、可发布的 AI 互动内容。": {
+            "en-US": "AI Infinite Encyclopedia is a visual knowledge exploration engine for different audiences and scenarios. It supports youth learning, general knowledge exploration, and helps institutions turn courses, exhibitions, study routes, and professional knowledge into interactive AI content.",
+            "es-ES": "Enciclopedia Infinita AI es un motor visual de exploración del conocimiento para distintos públicos y escenarios. Sirve al aprendizaje juvenil, la cultura general y ayuda a las instituciones a convertir cursos, exposiciones, rutas educativas y conocimiento profesional en contenido interactivo con IA.",
+            "ja-JP": "AI 無限百科は、さまざまな人や場面に向けた視覚的な知識探索エンジンです。青少年の興味学習、一般教養の探索、そして機関の教材・展示・研学ルート・専門知識を対話型 AI コンテンツへ加工する用途に対応します。",
+            "fr-FR": "Encyclopédie Infinie IA est un moteur visuel d'exploration du savoir pour différents publics et usages. Elle sert l'apprentissage des jeunes, la culture générale et aide les institutions à transformer cours, expositions, parcours pédagogiques et savoirs professionnels en contenus IA interactifs.",
+          },
+          "可视化探索": {
+            "en-US": "Visual exploration",
+            "es-ES": "Exploración visual",
+            "ja-JP": "視覚的探索",
+            "fr-FR": "Exploration visuelle",
+          },
+          "结构化讲解": {
+            "en-US": "Structured explanation",
+            "es-ES": "Explicación estructurada",
+            "ja-JP": "構造化された解説",
+            "fr-FR": "Explication structurée",
+          },
+          "可持续深入": {
+            "en-US": "Continuous deepening",
+            "es-ES": "Profundización continua",
+            "ja-JP": "継続的な深掘り",
+            "fr-FR": "Approfondissement continu",
+          },
+          "可生产复用": {
+            "en-US": "Reusable production",
+            "es-ES": "Producción reutilizable",
+            "ja-JP": "再利用できる制作",
+            "fr-FR": "Production réutilisable",
+          },
+          "从主题理解到内容生产，都围绕知识路径组织。": {
+            "en-US": "From topic understanding to content production, everything is organized around knowledge paths.",
+            "es-ES": "Desde comprender un tema hasta producir contenido, todo se organiza alrededor de rutas de conocimiento.",
+            "ja-JP": "テーマ理解からコンテンツ制作まで、すべて知識パスを中心に整理されます。",
+            "fr-FR": "De la compréhension du sujet à la production de contenu, tout s'organise autour de chemins de savoir.",
+          },
+          "为什么选择 AI 无限百科？": {
+            "en-US": "Why choose AI Infinite Encyclopedia?",
+            "es-ES": "¿Por qué elegir Enciclopedia Infinita AI?",
+            "ja-JP": "なぜ AI 無限百科なのか？",
+            "fr-FR": "Pourquoi choisir Encyclopédie Infinie IA ?",
+          },
+          "不是再给用户一堆资料，而是把一个想法变成可探索、可讲解、可输出的视觉知识地图。": {
+            "en-US": "Instead of handing users another pile of materials, it turns an idea into an explorable, explainable, exportable visual knowledge map.",
+            "es-ES": "No entrega otra pila de materiales: convierte una idea en un mapa visual explorable, explicable y exportable.",
+            "ja-JP": "資料を積み上げるのではなく、ひとつのアイデアを探索・解説・出力できる視覚知識マップに変えます。",
+            "fr-FR": "Au lieu d'ajouter des documents, elle transforme une idée en carte visuelle explorable, explicable et publiable.",
+          },
+          "让每一次好奇，都变成一张会生长的知识地图。": {
+            "en-US": "Turn every curiosity into a knowledge map that grows.",
+            "es-ES": "Convierte cada curiosidad en un mapa de conocimiento que crece.",
+            "ja-JP": "すべての好奇心を、成長する知識マップへ。",
+            "fr-FR": "Transformez chaque curiosité en carte de savoir vivante.",
+          },
+          "试试生成一张知识地图": {
+            "en-US": "Try generating a knowledge map",
+            "es-ES": "Probar generar un mapa",
+            "ja-JP": "知識マップを生成してみる",
+            "fr-FR": "Essayer de générer une carte",
+          },
+          "普通百科 / 搜索": {
+            "en-US": "Normal encyclopedia / search",
+            "es-ES": "Enciclopedia normal / búsqueda",
+            "ja-JP": "通常の百科 / 検索",
+            "fr-FR": "Encyclopédie classique / recherche",
+          },
+          "维度": {
+            "en-US": "Dimension",
+            "es-ES": "Dimensión",
+            "ja-JP": "観点",
+            "fr-FR": "Dimension",
+          },
+          "返回首页": {
+            "en-US": "Back home",
+            "es-ES": "Volver al inicio",
+            "ja-JP": "ホームへ戻る",
+            "fr-FR": "Retour accueil",
+          },
+          "模式首页": {
+            "en-US": "Mode home",
+            "es-ES": "Inicio de modos",
+            "ja-JP": "モードホーム",
+            "fr-FR": "Accueil des modes",
+          },
+          "生成视觉百科页": {
+            "en-US": "Generate visual encyclopedia page",
+            "es-ES": "Generar página visual",
+            "ja-JP": "ビジュアル百科ページを生成",
+            "fr-FR": "Générer la page visuelle",
+          },
+          "预置主题": {
+            "en-US": "Preset topics",
+            "es-ES": "Temas predefinidos",
+            "ja-JP": "プリセットテーマ",
+            "fr-FR": "Sujets prédéfinis",
+          },
+          "上传图片": {
+            "en-US": "Upload image",
+            "es-ES": "Subir imagen",
+            "ja-JP": "画像をアップロード",
+            "fr-FR": "Importer une image",
+          },
+        };
+
+        const textOriginals = new WeakMap();
+        const attrOriginals = new WeakMap();
+        let currentLang = "zh-CN";
+        let applying = false;
+        let queued = false;
+
+        const normalize = (value) => (value || "").replace(/\s+/g, " ").trim();
+
+        const translated = (key) => {
+          if (currentLang === "zh-CN") return null;
+          return text[key]?.[currentLang] || null;
+        };
+
+        const withOriginalWhitespace = (original, replacement) => {
+          const leading = original.match(/^\s*/)?.[0] || "";
+          const trailing = original.match(/\s*$/)?.[0] || "";
+          return `${leading}${replacement}${trailing}`;
+        };
+
+        const translateTextNode = (node) => {
+          const currentKey = normalize(node.nodeValue);
+          const stored = textOriginals.get(node);
+          let original = stored;
+
+          if (text[currentKey] && (!stored || normalize(stored) !== currentKey)) {
+            original = node.nodeValue;
+            textOriginals.set(node, original);
+          }
+
+          if (!original) {
+            return;
+          }
+
+          const key = normalize(original);
+          const next =
+            currentLang === "zh-CN"
+              ? original
+              : withOriginalWhitespace(original, translated(key) || key);
+
+          if (node.nodeValue !== next) {
+            node.nodeValue = next;
+          }
+        };
+
+        const attrStoreFor = (element) => {
+          let store = attrOriginals.get(element);
+          if (!store) {
+            store = {};
+            attrOriginals.set(element, store);
+          }
+          return store;
+        };
+
+        const translateAttribute = (element, attr) => {
+          if (!element.hasAttribute(attr)) return;
+          const value = element.getAttribute(attr) || "";
+          const currentKey = normalize(value);
+          const store = attrStoreFor(element);
+
+          if (text[currentKey] && (!store[attr] || normalize(store[attr]) !== currentKey)) {
+            store[attr] = value;
+          }
+
+          const original = store[attr];
+          if (!original) return;
+
+          const key = normalize(original);
+          const next = currentLang === "zh-CN" ? original : translated(key) || key;
+          if (value !== next) {
+            element.setAttribute(attr, next);
+          }
+        };
+
+        const applyTranslations = () => {
+          if (applying) return;
+          applying = true;
+
+          document.documentElement.lang = currentLang;
+
+          const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            {
+              acceptNode(node) {
+                const parent = node.parentElement;
+                if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT"].includes(parent.tagName)) {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                const key = normalize(textOriginals.get(node) || node.nodeValue);
+                return text[key] ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+              },
+            },
+          );
+
+          const nodes = [];
+          while (walker.nextNode()) nodes.push(walker.currentNode);
+          nodes.forEach(translateTextNode);
+
+          document.querySelectorAll("[aria-label], [alt], input[placeholder]").forEach((element) => {
+            translateAttribute(element, "aria-label");
+            translateAttribute(element, "alt");
+            translateAttribute(element, "placeholder");
+          });
+
+          applying = false;
+        };
+
+        const queueApply = () => {
+          if (queued) return;
+          queued = true;
+          window.setTimeout(() => {
+            queued = false;
+            applyTranslations();
+          }, 40);
+        };
+
+        document.addEventListener(
+          "click",
+          (event) => {
+            const target = event.target.closest("button");
+            if (!target) return;
+            const code = languageCodes[normalize(target.textContent)];
+            if (!code) return;
+
+            currentLang = code;
+            queueApply();
+            window.setTimeout(applyTranslations, 160);
+            window.setTimeout(applyTranslations, 420);
+          },
+          true,
+        );
+
+        const observer = new MutationObserver(queueApply);
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+          attributeFilter: ["aria-label", "alt", "placeholder"],
+        });
+
+        window.setTimeout(applyTranslations, 120);
       })();
     </script>
   </body>
