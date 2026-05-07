@@ -10,6 +10,8 @@ const GENERATE_TIMEOUT_MS = 300_000;
 const TASK_INITIAL_DELAY_MS = 10_000;
 const TASK_POLL_INTERVAL_MS = 4_000;
 const DEFAULT_IMAGE_SIZE = '4:3';
+const GENERATE_RETRY_DELAYS_MS = [2_500, 6_000, 12_000];
+const RETRYABLE_GENERATE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 export const defaultStylePrompt = `风格参考：
 - 欧洲古典旅行指南
@@ -82,7 +84,40 @@ interface ApimartTaskStatusResponse {
   };
 }
 
+class GenerateHttpError extends Error {}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+const getGenerateFailureMessage = (status: number, text: string, retried: boolean) => {
+  let upstreamMessage = '';
+  try {
+    const payload = JSON.parse(text) as {
+      error?: {
+        message?: string;
+        type?: string;
+      };
+    };
+    upstreamMessage = payload.error?.message?.trim() ?? '';
+  } catch {
+    upstreamMessage = text.trim();
+  }
+
+  if (status === 503) {
+    return retried
+      ? '生图服务暂时繁忙（503），已经自动重试多次仍未成功，请稍后再试。'
+      : '生图服务暂时繁忙（503），请稍后再试。';
+  }
+
+  if (status === 429) {
+    return retried
+      ? '生图服务请求过于频繁（429），已经自动重试多次仍未成功，请稍后再试。'
+      : '生图服务请求过于频繁（429），请稍后再试。';
+  }
+
+  return upstreamMessage
+    ? `请求失败 ${status}: ${upstreamMessage}`
+    : `请求失败 ${status}`;
+};
 
 const blobToDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -247,28 +282,57 @@ const uploadImageToApimart = async (imageSource: string, filename: string): Prom
 };
 
 const postGenerateJson = async <T>(body: Record<string, unknown>, timeoutMs: number): Promise<T> => {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(APIMART_PROXY_GENERATE_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`请求失败 ${response.status}: ${text}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= GENERATE_RETRY_DELAYS_MS.length; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(APIMART_PROXY_GENERATE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        const canRetry =
+          RETRYABLE_GENERATE_STATUS.has(response.status) &&
+          attempt < GENERATE_RETRY_DELAYS_MS.length;
+
+        if (canRetry) {
+          await sleep(GENERATE_RETRY_DELAYS_MS[attempt]);
+          continue;
+        }
+
+        throw new GenerateHttpError(
+          getGenerateFailureMessage(response.status, text, attempt > 0),
+        );
+      }
+      return (await response.json()) as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒）`);
+      }
+
+      if (error instanceof GenerateHttpError) {
+        throw error;
+      }
+
+      lastError = error instanceof Error ? error : new Error('请求失败');
+
+      if (attempt < GENERATE_RETRY_DELAYS_MS.length) {
+        await sleep(GENERATE_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+
+      throw lastError;
+    } finally {
+      window.clearTimeout(timeout);
     }
-    return (await response.json()) as T;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒）`);
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
   }
+
+  throw lastError ?? new Error('请求失败');
 };
 
 const getTaskStatus = async (taskId: string): Promise<ApimartTaskStatusResponse> => {
