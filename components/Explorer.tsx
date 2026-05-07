@@ -475,7 +475,7 @@ export default function Explorer() {
   return (
     <div className="flex h-screen w-screen items-stretch overflow-hidden p-4">
       {/* Browser-frame outer card */}
-      <div className="flex flex-1 overflow-hidden rounded-3xl border border-foreground/15 bg-card/70 shadow-[0_24px_60px_-30px_rgba(40,28,16,0.35)] backdrop-blur-sm">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-3xl border border-foreground/15 bg-card/70 shadow-[0_24px_60px_-30px_rgba(40,28,16,0.35)] backdrop-blur-sm">
         <HistorySidebar
           history={history}
           selectedDemoId={selectedDemoId}

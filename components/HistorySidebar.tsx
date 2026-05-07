@@ -42,7 +42,7 @@ export default function HistorySidebar({
   onLogout,
 }: HistorySidebarProps) {
   return (
-    <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border/60 bg-card/40 backdrop-blur-sm">
+    <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-border/60 bg-card/40 backdrop-blur-sm">
       <div className="border-b border-border/60 px-4 py-4">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
           <Compass className="h-4 w-4 text-primary" />
@@ -95,7 +95,7 @@ export default function HistorySidebar({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
         <div className="flex flex-col gap-2 p-3">
           {history.length === 0 && (
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">

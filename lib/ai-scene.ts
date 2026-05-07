@@ -15,12 +15,13 @@ const RETRYABLE_GENERATE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 export const defaultStylePrompt = `简化版百科剖析图风格要求：
 - 整体接近高级科普杂志、植物科学图册、食材科学图解页、技术说明图、printed knowledge chart。
-- 视觉气质是 editorial infographic / botanical anatomy plate / food science illustration / clean educational poster / technical hand-drawn diagram。
-- 风格必须精致、克制、清晰、专业、简洁，有浅色纸张感和轻手绘技术图解感。
+- 视觉气质是 editorial infographic / botanical anatomy plate / food science illustration / clean educational poster / technical line drawing diagram。
+- 风格必须精致、克制、清晰、专业、简洁，有浅色纸张感和印刷型技术图解感。
 - 采用浅底、低饱和、印刷型技术图解配色：warm off-white / ivory / pale paper beige 背景，warm gray-brown / taupe / soft graphite 细线，desaturated sage green / muted olive / pale celery green / oatmeal / dusty khaki / clay beige 等柔和色。
-- 主体要有精细线描、柔和阴影、适度体积感和结构明确的百科插图质感，不要照片风、塑料感 3D 或卡通夸张。
+- 主体要有精细线描、清晰边界、克制平涂、少量淡色块和结构明确的百科插图质感，不要照片风、塑料感 3D 或卡通夸张。
 - 版式像一本高级知识图册的单页：主体居中且最大，周围模块有层级，留白舒服，细边框、细箭头、细虚线辅助阅读。
 - 文字只作为辅助标注，不要大段说明、复杂表格或论文式密集内容。
+- 禁止水彩晕染、湿画法、颜料扩散、大片柔焦阴影、厚涂笔触。
 - 禁止广告海报感、网页截图、浏览器导航栏、按钮、弹窗、UI 界面、手机界面、高饱和插画、花哨电商排版、重 3D 渲染、画面拥挤、视觉焦点混乱。`;
 
 const encyclopediaPlateStructurePrompt = `百科剖析图结构要求：
