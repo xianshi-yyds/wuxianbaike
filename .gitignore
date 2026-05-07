@@ -1,0 +1,12 @@
+.env*
+!.env.example
+.DS_Store
+*.tsbuildinfo
+
+/.next/
+/node_modules/
+/data/
+/generated-images/
+/generated-audio/
+/user-history/
+/open.html

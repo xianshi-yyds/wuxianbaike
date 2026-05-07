@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: hsl(40 33% 93%);
+  --foreground: hsl(30 18% 20%);
+  --card: hsl(40 30% 96%);
+  --card-foreground: hsl(30 18% 20%);
+  --popover: hsl(40 30% 96%);
+  --popover-foreground: hsl(30 18% 20%);
+  --primary: hsl(32 78% 42%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(35 24% 78%);
+  --secondary-foreground: hsl(30 18% 20%);
+  --muted: hsl(35 20% 88%);
+  --muted-foreground: hsl(30 12% 45%);
+  --accent: hsl(32 78% 42%);
+  --accent-foreground: hsl(0 0% 100%);
+  --destructive: hsl(0 72% 45%);
+  --border: hsl(35 20% 80%);
+  --input: hsl(35 20% 85%);
+  --ring: hsl(32 78% 42%);
+  --radius: 0.625rem;
+  --sidebar: hsl(40 33% 93%);
+  --sidebar-foreground: hsl(30 18% 20%);
+  --sidebar-primary: hsl(32 78% 42%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(35 24% 78%);
+  --sidebar-accent-foreground: hsl(30 18% 20%);
+  --sidebar-border: hsl(35 20% 80%);
+  --sidebar-ring: hsl(32 78% 42%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.94), transparent 28%),
+      linear-gradient(180deg, #faf6ef 0%, #f1eadf 100%);
+    background-attachment: fixed;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 400ms ease both;
+}
+.scale-in {
+  animation: scaleIn 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animate-click-ring {
+  animation: clickRing 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.animate-scene-zoom-in {
+  animation: sceneZoomIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-scene-fade {
+  animation: sceneFade 280ms ease both;
+}
+.font-handwriting {
+  font-family: "Caveat", "Patrick Hand", cursive;
+  font-weight: 700;
+}
+.font-sketch {
+  font-family: "Patrick Hand", "Caveat", cursive;
+  font-weight: 400;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes clickRing {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.6);
+  }
+  85% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@keyframes sceneZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.32);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sceneFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+ * Google Maps 风双图同步缩放转场。
+ * 关键不变量：new.scale = 0.16 × old.scale（任意时刻成立，保证新图永远精确
+ * 叠合在老图的 click 区域上）。
+ *
+ * 两图共享 transform-origin = 点击位置（由 inline style 注入，plane 坐标系）。
+ * 两图必须使用同一个 easing 函数，否则瞬时同步关系被破坏。
+ *
+ * 老图：scale 1 → 6.25（让 16% 的 click 区域被放大到刚好填满 viewport）
+ * 新图：scale 0.16 → 1（终态满屏）
+ *
+ * 1500ms 终态：老图 click 区域被放大到接近满屏 → 立刻被 layer.opacity 切掉
+ * 揭开下层已经满屏的新图。
+ */
+/*
+ * 老图分两个独立动画并行：
+ *   - flipbookOldZoom: scale 1→6.25 + translate 0→(--end-tx, --end-ty)，
+ *     2000ms ease-out（前段快、末段平稳收尾）。
+ *   - flipbookOldFade: opacity 1→0，500ms linear，延迟 1500ms 启动。
+ * 拆开是因为如果合在一个 keyframe 里，opacity 的淡出区间被 ease-out 的
+ * 末段减速压扁到几乎察觉不到（225ms 实际 wall-time 更短）。
+ *
+ * --end-tx / --end-ty 由 inline style 按点击位置反向注入，
+ * 让 click 区域逐渐移动到视口中央。
+ */
+@keyframes flipbookOldZoom {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    transform: translate(var(--end-tx, 0%), var(--end-ty, 0%)) scale(6.25);
+  }
+}
+
+@keyframes flipbookOldFade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes flipbookNewZoomIn {
+  0% { transform: scale(0.16); }
+  100% { transform: scale(1); }
+}
