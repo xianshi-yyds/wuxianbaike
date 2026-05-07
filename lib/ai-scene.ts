@@ -9,6 +9,7 @@ const IMAGE_HOST = 'https://xianshi.icu';
 const GENERATE_TIMEOUT_MS = 300_000;
 const TASK_INITIAL_DELAY_MS = 10_000;
 const TASK_POLL_INTERVAL_MS = 4_000;
+const DEFAULT_IMAGE_SIZE = '4:3';
 
 export const defaultStylePrompt = `风格参考：
 - 欧洲古典旅行指南
@@ -37,6 +38,22 @@ export const defaultStylePrompt = `风格参考：
 - 写实摄影风
 - 过度3D渲染
 - 杂乱背景`;
+
+const encyclopediaPlateStructurePrompt = `百科剖析图结构要求：
+- 默认生成 4:3 横版图像，像高级科普杂志、植物科学图册、食材科学图解页或技术说明图中的单页。
+- 采用"大主体 + 少量重点模块"：中心主体必须明显放大，占据画面主要视觉面积，成为绝对焦点。
+- 四周仅安排 5-7 个信息模块，每个模块只表达一个重点；标题短，说明 1-3 行，图为主、字为辅。
+- 可按主题选择 Growth Stages、Soil & Root Uptake、Texture / Cell Structure、Trim & Wash、Cooking Journey、Nutrient & Storage Summary、From Field to Table 等模块，但不要全部硬塞。
+- 如果主题不是植物、食材或自然科学，也要沿用同样的百科剖析图逻辑，转译为对应主题的结构、材质、功能、流程或局部关系。
+- 主体可包含完整主体、剖开后的主体、局部切面，并只用 3-5 个细引导线标注最关键结构点。
+- 背景使用 warm off-white / ivory / pale paper beige，线条使用 taupe / soft graphite，主体和辅助色保持低饱和、印刷型技术图解配色。
+- 保持舒适留白、细边框、细箭头或细虚线；不要信息过密、文字过长、模块过多、视觉焦点混乱。`;
+
+const focusedPlateStructurePrompt = `下一层细节图结构要求：
+- 仍然保持 4:3 横版百科剖析图逻辑，围绕红框区域生成更近、更清楚、更有层次的局部解析图。
+- 红框主体必须放大并居中，优先展示局部结构、剖面、质地、功能关系或关键细节。
+- 周围只保留 3-5 个短标注或少量辅助模块，不要把画面做成密集信息板。
+- 保持上一层的低饱和图册页视觉语言、纸张感、细线描边和克制留白。`;
 
 interface ApimartTaskSubmitResponse {
   code?: number;
@@ -302,11 +319,12 @@ export const generateOverviewImage = async ({
   referenceImageUrl,
 }: GenerateOverviewParams): Promise<string> => {
   const text = [
-    `请根据用户需求生成一张清晰、完整、可继续点击局部放大的主体图像。用户需求是：${prompt}`,
+    `请根据用户需求生成一张清晰、完整、可继续点击局部放大的百科剖析图。用户需求是：${prompt}`,
     '请优先忠实表现用户需求中的主体、题材、关系、动作、材质与场景，不要把主题自动改写成城堡、王国、城市地图、景区导览、建筑群或博物馆画册，除非用户明确要求。',
     '这张图的职责是作为"自由点击放大解析系统"的起点，因此主体区域需要清楚、有层次、可辨识，方便用户点击任意局部后继续生成细节图。',
     '视角、构图和内容组织应服务于用户指定的主题；只有当用户要求地图、导览、建筑总览或空间布局时，才使用顶视图、俯视图或导览图视角。',
-    '画面中不要强制编号，不要列表，不要说明面板，不要现代 UI。',
+    encyclopediaPlateStructurePrompt,
+    '画面中不要强制编号，不要现代 UI；如需说明内容，只使用少量图册式模块、短标题和短标注。',
     '输出应是一张完整插画风格图像，不要浏览器边框或截图界面。',
     referenceImageUrl ? '请优先参考提供图片中的主体、结构、姿态、材质、构图或风格线索；除非用户明确要求，不要在参考图之外额外添加王国、城堡、地图或建筑导览元素。' : '',
     stylePrompt ?? defaultStylePrompt,
@@ -322,7 +340,7 @@ export const generateOverviewImage = async ({
     {
       model: 'gpt-image-2',
       prompt: text,
-      size: '1:1',
+      size: DEFAULT_IMAGE_SIZE,
       resolution: '1k',
       quality: 'low',
       output_format: 'png',
@@ -365,7 +383,8 @@ export const generateFocusedSceneImage = async ({
     hotspot.generationPrompt ?? '请根据红框中的内容，生成该区域更详细、更近景、更有层次的解析图。',
     '新的图片不需要编号，不需要列表，不需要详情卡片，也不要生成现代 UI。',
     '请让新图保持与上一层一致的视觉语言，但视角可以切换为更近的斜视角、局部视角或第一视角，让人感受到从总览进入细节。',
-    '画面主体必须明确聚焦红框区域内的建筑、景点、局部结构或物品，不要被其他无关区域分散。',
+    focusedPlateStructurePrompt,
+    '画面主体必须明确聚焦红框区域内的主体、局部结构、材质、功能关系或物品，不要被其他无关区域分散。',
     '输出应是一张完整、可继续被用户再次点击放大的场景细节图。',
     stylePrompt ?? defaultStylePrompt,
   ]
@@ -376,7 +395,7 @@ export const generateFocusedSceneImage = async ({
     {
       model: 'gpt-image-2',
       prompt: text,
-      size: '1:1',
+      size: DEFAULT_IMAGE_SIZE,
       resolution: '1k',
       quality: 'low',
       output_format: 'png',

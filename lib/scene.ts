@@ -16,7 +16,7 @@ export const createClickFocusHotspot = (
     id: makeId('focus-hotspot'),
     label: `${sceneTitle} 点击区域`,
     description: `围绕"${sceneTitle}"中用户点击的这一块区域继续生成更细节的解析图。`,
-    generationPrompt: '请根据红框中的内容，围绕该区域的主体、结构、景点或局部信息生成更细致的解析图。',
+    generationPrompt: '请根据红框中的内容，围绕该区域的主体、结构、材质、功能关系或局部信息生成更细致的解析图。',
     badge: '点击放大',
     position,
     bounds: { x, y, width, height },
