@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -107,11 +106,11 @@
   animation: sceneFade 280ms ease both;
 }
 .font-handwriting {
-  font-family: "Caveat", "Patrick Hand", cursive;
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", cursive;
   font-weight: 700;
 }
 .font-sketch {
-  font-family: "Patrick Hand", "Caveat", cursive;
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", cursive;
   font-weight: 400;
 }
 
