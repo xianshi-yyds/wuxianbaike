@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 import {
-  decorateImageWithHotspotBox,
+  cropImageToHotspot,
   generateFocusedSceneImage,
   generateOverviewImage,
 } from '@/lib/ai-scene';
@@ -400,13 +400,13 @@ export default function Explorer() {
 
     try {
       const hotspot = createClickFocusHotspot(position, selectedScene.title);
-      const highlightedImage = await decorateImageWithHotspotBox(
+      const croppedImage = await cropImageToHotspot(
         selectedScene.imageUrl,
         hotspot,
       );
 
       const childImageUrl = await generateFocusedSceneImage({
-        sourceImageUrl: highlightedImage,
+        sourceImageUrl: croppedImage,
         hotspot,
       });
 

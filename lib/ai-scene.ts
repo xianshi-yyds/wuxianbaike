@@ -13,33 +13,15 @@ const DEFAULT_IMAGE_SIZE = '4:3';
 const GENERATE_RETRY_DELAYS_MS = [2_500, 6_000, 12_000];
 const RETRYABLE_GENERATE_STATUS = new Set([429, 500, 502, 503, 504]);
 
-export const defaultStylePrompt = `风格参考：
-- 欧洲古典旅行指南
-- 博物馆官方导览页
-- Vintage infographic
-- Isometric architectural guide
-- Editorial museum brochure
-主体画风：
-- 精致钢笔线稿 + 水彩淡彩上色
-- 米白色、羊皮纸色、浅灰褐色为主
-- 低饱和暖色调
-- 古典排版
-- 高细节建筑透视
-- 对称稳定构图
-色彩：
-- parchment beige
-- sepia
-- ivory
-- warm gray
-- muted gold accents
-禁止：
-- 现代UI
-- 浏览器框
-- 强烈鲜艳色彩
-- 卡通化
-- 写实摄影风
-- 过度3D渲染
-- 杂乱背景`;
+export const defaultStylePrompt = `简化版百科剖析图风格要求：
+- 整体接近高级科普杂志、植物科学图册、食材科学图解页、技术说明图、printed knowledge chart。
+- 视觉气质是 editorial infographic / botanical anatomy plate / food science illustration / clean educational poster / technical hand-drawn diagram。
+- 风格必须精致、克制、清晰、专业、简洁，有浅色纸张感和轻手绘技术图解感。
+- 采用浅底、低饱和、印刷型技术图解配色：warm off-white / ivory / pale paper beige 背景，warm gray-brown / taupe / soft graphite 细线，desaturated sage green / muted olive / pale celery green / oatmeal / dusty khaki / clay beige 等柔和色。
+- 主体要有精细线描、柔和阴影、适度体积感和结构明确的百科插图质感，不要照片风、塑料感 3D 或卡通夸张。
+- 版式像一本高级知识图册的单页：主体居中且最大，周围模块有层级，留白舒服，细边框、细箭头、细虚线辅助阅读。
+- 文字只作为辅助标注，不要大段说明、复杂表格或论文式密集内容。
+- 禁止广告海报感、网页截图、浏览器导航栏、按钮、弹窗、UI 界面、手机界面、高饱和插画、花哨电商排版、重 3D 渲染、画面拥挤、视觉焦点混乱。`;
 
 const encyclopediaPlateStructurePrompt = `百科剖析图结构要求：
 - 默认生成 4:3 横版图像，像高级科普杂志、植物科学图册、食材科学图解页或技术说明图中的单页。
@@ -52,8 +34,8 @@ const encyclopediaPlateStructurePrompt = `百科剖析图结构要求：
 - 保持舒适留白、细边框、细箭头或细虚线；不要信息过密、文字过长、模块过多、视觉焦点混乱。`;
 
 const focusedPlateStructurePrompt = `下一层细节图结构要求：
-- 仍然保持 4:3 横版百科剖析图逻辑，围绕红框区域生成更近、更清楚、更有层次的局部解析图。
-- 红框主体必须放大并居中，优先展示局部结构、剖面、质地、功能关系或关键细节。
+- 仍然保持 4:3 横版百科剖析图逻辑，围绕裁剪出来的点击区域生成更近、更清楚、更有层次的局部解析图。
+- 裁剪图中的主体必须放大并居中，优先展示局部结构、剖面、质地、功能关系或关键细节。
 - 周围只保留 3-5 个短标注或少量辅助模块，不要把画面做成密集信息板。
 - 保持上一层的低饱和图册页视觉语言、纸张感、细线描边和克制留白。`;
 
@@ -437,18 +419,18 @@ export const generateFocusedSceneImage = async ({
 }: GenerateFocusedParams): Promise<string> => {
   const uploadedSourceImageUrl = await uploadImageToApimart(
     sourceImageUrl,
-    `focus-hotspot-${Date.now()}.png`,
+    `focus-crop-${Date.now()}.png`,
   );
 
   const text = [
     '你正在为一套"自由点击放大解析系统"生成下一层细节图。',
-    '原图中已经用红框标出了当前点击区域，请严格围绕红框内的主体生成一张更详细的解析图。',
-    `当前点击区域说明：${hotspot.label}。`,
-    hotspot.generationPrompt ?? '请根据红框中的内容，生成该区域更详细、更近景、更有层次的解析图。',
+    '输入参考图已经是用户点击区域的单独裁剪图，请严格围绕裁剪图中的主体生成一张更详细的解析图。',
+    `当前裁剪区域说明：${hotspot.label}。`,
+    hotspot.generationPrompt ?? '请根据裁剪图中的内容，生成该区域更详细、更近景、更有层次的解析图。',
     '新的图片不需要编号，不需要列表，不需要详情卡片，也不要生成现代 UI。',
     '请让新图保持与上一层一致的视觉语言，但视角可以切换为更近的斜视角、局部视角或第一视角，让人感受到从总览进入细节。',
     focusedPlateStructurePrompt,
-    '画面主体必须明确聚焦红框区域内的主体、局部结构、材质、功能关系或物品，不要被其他无关区域分散。',
+    '画面主体必须明确聚焦裁剪图中的主体、局部结构、材质、功能关系或物品，不要被其他无关区域分散。',
     '输出应是一张完整、可继续被用户再次点击放大的场景细节图。',
     stylePrompt ?? defaultStylePrompt,
   ]
@@ -479,21 +461,11 @@ export const generateFocusedSceneImage = async ({
   return saveGeneratedImage(resolvedImageSource, 'focus');
 };
 
-export const decorateImageWithHotspotBox = async (
+export const cropImageToHotspot = async (
   imageUrl: string,
   hotspot: ImageHotspot,
 ): Promise<string> => {
   const image = await loadImageElement(imageUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  const context = canvas.getContext('2d');
-  if (!context) {
-    throw new Error('无法创建绘图上下文。');
-  }
-
-  context.drawImage(image, 0, 0);
-
   const bounds = hotspot.bounds ?? {
     x: hotspot.position.x - 10,
     y: hotspot.position.y - 10,
@@ -501,27 +473,35 @@ export const decorateImageWithHotspotBox = async (
     height: 20,
   };
 
-  const x = (bounds.x / 100) * canvas.width;
-  const y = (bounds.y / 100) * canvas.height;
-  const width = (bounds.width / 100) * canvas.width;
-  const height = (bounds.height / 100) * canvas.height;
+  const xPercent = Math.max(0, Math.min(99, bounds.x));
+  const yPercent = Math.max(0, Math.min(99, bounds.y));
+  const widthPercent = Math.max(1, Math.min(100 - xPercent, bounds.width));
+  const heightPercent = Math.max(1, Math.min(100 - yPercent, bounds.height));
 
-  context.strokeStyle = '#d1121b';
-  context.lineWidth = Math.max(6, Math.round(canvas.width * 0.006));
-  context.setLineDash([]);
-  context.strokeRect(x, y, width, height);
+  const sourceX = Math.round((xPercent / 100) * image.naturalWidth);
+  const sourceY = Math.round((yPercent / 100) * image.naturalHeight);
+  const sourceWidth = Math.max(1, Math.round((widthPercent / 100) * image.naturalWidth));
+  const sourceHeight = Math.max(1, Math.round((heightPercent / 100) * image.naturalHeight));
 
-  context.fillStyle = '#d1121b';
-  context.font = `${Math.max(24, Math.round(canvas.width * 0.024))}px sans-serif`;
-  const markerText = hotspot.index ? `${hotspot.index}. ${hotspot.label}` : hotspot.label;
-  const tagWidth = Math.max(120, context.measureText(markerText).width + 34);
-  const tagHeight = Math.max(34, Math.round(canvas.height * 0.055));
-  const tagX = x;
-  const tagY = Math.max(0, y - tagHeight - 8);
-  context.fillRect(tagX, tagY, tagWidth, tagHeight);
+  const canvas = document.createElement('canvas');
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('无法创建绘图上下文。');
+  }
 
-  context.fillStyle = '#ffffff';
-  context.fillText(markerText, tagX + 16, tagY + tagHeight * 0.68);
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+  );
 
   return canvas.toDataURL('image/png');
 };
