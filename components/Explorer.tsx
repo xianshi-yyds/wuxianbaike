@@ -91,6 +91,39 @@ const writeGuestHistory = (history: DemoHistoryItem[]) => {
   );
 };
 
+const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
+
+const createFreeformHotspot = (
+  position: { x: number; y: number },
+  scene: GeneratedScene,
+): ExploreKnowledgePoint => {
+  const width = 22;
+  const height = 22;
+  const x = Math.max(2, Math.min(100 - width - 2, position.x - width / 2));
+  const y = Math.max(2, Math.min(100 - height - 2, position.y - height / 2));
+  const label = '点击区域';
+  const nextTopic = `${scene.title}：${label}`;
+
+  return {
+    id: makeId('freeform-point'),
+    label,
+    category: '自由探索',
+    badge: '区域',
+    description: `围绕"${scene.title}"中用户选择的区域继续探索。`,
+    nextTopic,
+    generationPrompt: [
+      `请基于裁剪区域继续生成“${nextTopic}”的下一张百科剖析图。`,
+      '重点解释裁剪区域里可观察到的结构、材质、功能关系或隐藏线索。',
+      '保持主体突出，图像为主，文字短，生成一张可继续点击深入的百科图版。',
+    ].join('\n'),
+    position: {
+      x: clampPercent(position.x),
+      y: clampPercent(position.y),
+    },
+    bounds: { x, y, width, height },
+  };
+};
+
 const fetchJson = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(url, init);
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -571,13 +604,18 @@ export default function Explorer() {
     }
   };
 
-  const handleSceneClick = () => {
+  const handleSceneClick = (position: { x: number; y: number }) => {
     if (isProcessing) return;
     if (pendingExplore) {
       setPendingExplore(null);
       return;
     }
-    toast.info('请选择图版上的知识点继续探索');
+    if (!selectedDemo || !selectedScene) {
+      toast.info('请先生成一张总览图');
+      return;
+    }
+
+    handleKnowledgePointClick(createFreeformHotspot(position, selectedScene));
   };
 
   const handleKnowledgePointClick = (hotspot: ExploreKnowledgePoint) => {
@@ -589,11 +627,6 @@ export default function Explorer() {
       toast.info('请先生成一张总览图');
       return;
     }
-    if (!selectedDemo.exploreSessionId) {
-      toast.info('这条旧记录没有结构化知识点，请重新生成一次主题。');
-      return;
-    }
-
     setClickMarker(null);
     setFailedAction(null);
     setTagDismissed(false);
@@ -611,10 +644,6 @@ export default function Explorer() {
     }
     if (!selectedDemo || !selectedScene) {
       toast.info('请先生成一张总览图');
-      return;
-    }
-    if (!selectedDemo.exploreSessionId) {
-      toast.info('这条旧记录没有结构化知识点，请重新生成一次主题。');
       return;
     }
 
@@ -635,24 +664,46 @@ export default function Explorer() {
     });
 
     try {
-      setStatus('generating-content');
-      setProcessingTag({
-        hint: `正在生成「${hotspot.label}」的下一层知识点`,
-        thumbnailUrl: selectedScene.imageUrl,
-      });
-      const payload = await fetchJson<AppendExploreNodeResponse>(
-        `/api/explore/sessions/${encodeURIComponent(selectedDemo.exploreSessionId)}/nodes`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parentNodeId: selectedScene.id,
-            pointId: hotspot.id,
-          }),
-        },
-      );
-      if (!payload.session || !payload.node) {
-        throw new Error(payload.error ?? '下一层结构化内容生成失败');
+      let nextNode: ExploreNodePayload;
+      const isStructuredPoint =
+        Boolean(selectedDemo.exploreSessionId) &&
+        Boolean(selectedScene.hotspots?.some((point) => point.id === hotspot.id));
+
+      if (selectedDemo.exploreSessionId && isStructuredPoint) {
+        setStatus('generating-content');
+        setProcessingTag({
+          hint: `正在生成「${hotspot.label}」的下一层知识点`,
+          thumbnailUrl: selectedScene.imageUrl,
+        });
+        const payload = await fetchJson<AppendExploreNodeResponse>(
+          `/api/explore/sessions/${encodeURIComponent(selectedDemo.exploreSessionId)}/nodes`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              parentNodeId: selectedScene.id,
+              pointId: hotspot.id,
+            }),
+          },
+        );
+        if (!payload.session || !payload.node) {
+          throw new Error(payload.error ?? '下一层结构化内容生成失败');
+        }
+        nextNode = payload.node;
+      } else {
+        nextNode = {
+          id: makeId('scene'),
+          title: `${selectedScene.title} · 区域探索`,
+          intro: `基于"${selectedScene.title}"中选中的区域继续生成。`,
+          imagePrompt:
+            hotspot.generationPrompt ??
+            `请围绕"${selectedScene.title}"中选中的区域生成更细节的百科剖析图。`,
+          scope: selectedScene.scope ?? 'science',
+          path: [selectedScene.title, hotspot.label],
+          knowledgePoints: [],
+          nextTopics: [],
+          status: 'succeeded',
+        };
       }
 
       const croppedImage = await cropImageToHotspot(
@@ -662,20 +713,20 @@ export default function Explorer() {
 
       setStatus('generating-image');
       setProcessingTag({
-        hint: `生成中：正在绘制「${payload.node.title}」`,
+        hint: `生成中：正在绘制「${nextNode.title}」`,
         thumbnailUrl: croppedImage,
       });
       const childImageUrl = await generateFocusedSceneImage({
         sourceImageUrl: croppedImage,
         hotspot: {
           ...hotspot,
-          label: payload.node.title,
-          generationPrompt: payload.node.imagePrompt,
+          label: nextNode.title,
+          generationPrompt: nextNode.imagePrompt,
         },
       });
 
       const childScene = buildSceneFromNode({
-        node: payload.node,
+        node: nextNode,
         imageUrl: childImageUrl,
         depth: selectedScene.depth + 1,
         parentSceneId: selectedScene.id,
