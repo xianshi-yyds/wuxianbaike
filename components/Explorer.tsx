@@ -150,6 +150,12 @@ type FailedAction =
       hotspot: ExploreKnowledgePoint;
     };
 
+interface PendingExploreSelection {
+  sceneId: string;
+  sceneTitle: string;
+  hotspot: ExploreKnowledgePoint;
+}
+
 interface CreateExploreSessionResponse {
   session?: ExploreSessionPayload;
   node?: ExploreNodePayload;
@@ -185,6 +191,7 @@ export default function Explorer() {
   const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
   const [outOfScopeSuggestions, setOutOfScopeSuggestions] = useState<string[]>([]);
   const [showAuthPanel, setShowAuthPanel] = useState(false);
+  const [pendingExplore, setPendingExplore] = useState<PendingExploreSelection | null>(null);
   // 旧场景 zoom-out 转场：保留旧 scene id + 点击位置作为 transform-origin
   const [transitionFrom, setTransitionFrom] = useState<{
     sceneId: string;
@@ -227,6 +234,11 @@ export default function Explorer() {
     clickMarker !== null &&
     selectedScene !== null &&
     selectedScene.id === clickMarker.sceneId;
+  const showPendingExplore =
+    pendingExplore !== null &&
+    selectedScene !== null &&
+    selectedScene.id === pendingExplore.sceneId &&
+    !isProcessing;
 
   const clearTransition = useCallback(() => {
     setTransitionFrom(null);
@@ -241,6 +253,7 @@ export default function Explorer() {
     setProcessingTag(null);
     setTagDismissed(false);
     setClickMarker(null);
+    setPendingExplore(null);
   };
 
   const applyUserHistory = useCallback((user: AuthUser | null, nextHistory: DemoHistoryItem[]) => {
@@ -366,6 +379,7 @@ export default function Explorer() {
     setReferenceFile(null);
     setSelectedDemoId(null);
     setSelectedSceneId(null);
+    setPendingExplore(null);
     clearTransition();
   };
 
@@ -374,6 +388,7 @@ export default function Explorer() {
     const demo = history.find((item) => item.id === demoId);
     if (!demo) return;
     clearTransition();
+    setPendingExplore(null);
     setSelectedDemoId(demoId);
     setSelectedSceneId(demo.activeLeafId);
   };
@@ -395,6 +410,7 @@ export default function Explorer() {
     setHistory([]);
     setSelectedDemoId(null);
     setSelectedSceneId(null);
+    setPendingExplore(null);
     clearTransition();
     void persistHistory([]);
   };
@@ -402,6 +418,7 @@ export default function Explorer() {
   const handleSelectLineage = (sceneId: string) => {
     if (isProcessing) return;
     clearTransition();
+    setPendingExplore(null);
     setSelectedSceneId(sceneId);
   };
 
@@ -409,6 +426,7 @@ export default function Explorer() {
     if (isProcessing) return;
     if (!selectedScene?.parentSceneId) return;
     clearTransition();
+    setPendingExplore(null);
     setSelectedSceneId(selectedScene.parentSceneId);
   };
 
@@ -465,6 +483,7 @@ export default function Explorer() {
     setUserPrompt(topic);
     setFailedAction(null);
     setOutOfScopeSuggestions([]);
+    setPendingExplore(null);
     setStatus('queued');
     setTagDismissed(false);
     setProcessingTag({
@@ -554,10 +573,38 @@ export default function Explorer() {
 
   const handleSceneClick = () => {
     if (isProcessing) return;
+    if (pendingExplore) {
+      setPendingExplore(null);
+      return;
+    }
     toast.info('请选择图版上的知识点继续探索');
   };
 
-  const handleKnowledgePointClick = async (hotspot: ExploreKnowledgePoint) => {
+  const handleKnowledgePointClick = (hotspot: ExploreKnowledgePoint) => {
+    if (isProcessing) {
+      toast.info('上一张还在生成，请稍等');
+      return;
+    }
+    if (!selectedDemo || !selectedScene) {
+      toast.info('请先生成一张总览图');
+      return;
+    }
+    if (!selectedDemo.exploreSessionId) {
+      toast.info('这条旧记录没有结构化知识点，请重新生成一次主题。');
+      return;
+    }
+
+    setClickMarker(null);
+    setFailedAction(null);
+    setTagDismissed(false);
+    setPendingExplore({
+      sceneId: selectedScene.id,
+      sceneTitle: selectedScene.title,
+      hotspot,
+    });
+  };
+
+  const handleConfirmKnowledgePointExplore = async (hotspot: ExploreKnowledgePoint) => {
     if (isProcessing) {
       toast.info('上一张还在生成，请稍等');
       return;
@@ -578,6 +625,7 @@ export default function Explorer() {
       parentSceneTitle: selectedScene.title,
     };
     setClickMarker(marker);
+    setPendingExplore(null);
     setTagDismissed(false);
     setFailedAction(null);
     setStatus('queued');
@@ -697,7 +745,7 @@ export default function Explorer() {
       setSelectedDemoId(failedAction.demoId);
     }
     setSelectedSceneId(failedAction.sceneId);
-    void handleKnowledgePointClick(failedAction.hotspot);
+    void handleConfirmKnowledgePointExplore(failedAction.hotspot);
   };
 
   if (authStatus === 'loading') {
@@ -840,6 +888,13 @@ export default function Explorer() {
                     onSelect={handleKnowledgePointClick}
                   />
                 )}
+                {showPendingExplore && pendingExplore && (
+                  <PendingExploreCard
+                    selection={pendingExplore}
+                    onCancel={() => setPendingExplore(null)}
+                    onConfirm={() => void handleConfirmKnowledgePointExplore(pendingExplore.hotspot)}
+                  />
+                )}
                 {showClickRing && clickMarker && (
                   <ClickRingMarker
                     x={clickMarker.x}
@@ -888,6 +943,67 @@ export default function Explorer() {
             )}
           </div>
         </main>
+      </div>
+    </div>
+  );
+}
+
+function PendingExploreCard({
+  selection,
+  onCancel,
+  onConfirm,
+}: {
+  selection: PendingExploreSelection;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { hotspot } = selection;
+  const cardX = hotspot.position.x > 62 ? 'calc(-100% - 18px)' : '18px';
+  const cardY = hotspot.position.y > 66 ? 'calc(-100% - 18px)' : '18px';
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      <div className="absolute inset-0 animate-selection-dim bg-foreground/10" />
+      <div
+        className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 animate-focus-select rounded-full border border-white/80 bg-white/10 shadow-[0_0_0_1px_rgba(0,0,0,0.18),0_18px_48px_rgba(0,0,0,0.22)]"
+        style={{
+          left: `${hotspot.position.x}%`,
+          top: `${hotspot.position.y}%`,
+        }}
+      >
+        <div className="absolute inset-3 rounded-full border border-foreground/35 bg-background/10 backdrop-blur-[1px]" />
+        <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-background bg-foreground shadow-md" />
+      </div>
+
+      <div
+        className="pointer-events-auto absolute w-[320px] rounded-xl border border-foreground/10 bg-card/95 px-4 py-3 shadow-[0_18px_45px_rgba(35,28,18,0.22)] backdrop-blur fade-in"
+        style={{
+          left: `${hotspot.position.x}%`,
+          top: `${hotspot.position.y}%`,
+          transform: `translate(${cardX}, ${cardY})`,
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-foreground">已选择探索区域</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          正在理解这里隐藏的知识线索：{hotspot.label}
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full border border-foreground/15 bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition hover:bg-foreground hover:text-background"
+          >
+            深入探索这个区域
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full px-3 py-2 text-sm text-muted-foreground transition hover:bg-foreground/10 hover:text-foreground"
+          >
+            取消
+          </button>
+        </div>
       </div>
     </div>
   );
