@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import path from 'path';
 
 import { USER_HISTORY_DIR } from '@/lib/server/storage';
-import type { DemoHistoryItem, GeneratedScene } from '@/types';
+import type { DemoHistoryItem, ExploreKnowledgePoint, GeneratedScene } from '@/types';
 
 const MAX_HISTORY_ITEMS = 20;
 
@@ -13,6 +13,45 @@ const isPersistedImageUrl = (value: unknown): value is string =>
 
 const normalizeText = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.slice(0, 500) : fallback;
+
+const sanitizeHotspot = (value: unknown): ExploreKnowledgePoint | null => {
+  if (!value || typeof value !== 'object') return null;
+  const hotspot = value as Partial<ExploreKnowledgePoint>;
+  if (!hotspot.id || !hotspot.label || !hotspot.position) return null;
+
+  const position = hotspot.position;
+  if (
+    typeof position.x !== 'number' ||
+    typeof position.y !== 'number' ||
+    !Number.isFinite(position.x) ||
+    !Number.isFinite(position.y)
+  ) {
+    return null;
+  }
+
+  return {
+    id: normalizeText(hotspot.id),
+    label: normalizeText(hotspot.label),
+    description: normalizeText(hotspot.description),
+    generationPrompt: normalizeText(hotspot.generationPrompt),
+    badge: normalizeText(hotspot.badge),
+    index: typeof hotspot.index === 'number' ? Math.floor(hotspot.index) : undefined,
+    category: normalizeText(hotspot.category, '知识点'),
+    nextTopic: normalizeText(hotspot.nextTopic, hotspot.label),
+    position: {
+      x: Math.max(0, Math.min(100, position.x)),
+      y: Math.max(0, Math.min(100, position.y)),
+    },
+    bounds: hotspot.bounds
+      ? {
+          x: Math.max(0, Math.min(100, Number(hotspot.bounds.x) || 0)),
+          y: Math.max(0, Math.min(100, Number(hotspot.bounds.y) || 0)),
+          width: Math.max(1, Math.min(100, Number(hotspot.bounds.width) || 16)),
+          height: Math.max(1, Math.min(100, Number(hotspot.bounds.height) || 16)),
+        }
+      : undefined,
+  };
+};
 
 const sanitizeScene = (value: unknown): GeneratedScene | null => {
   if (!value || typeof value !== 'object') return null;
@@ -35,6 +74,18 @@ const sanitizeScene = (value: unknown): GeneratedScene | null => {
     parentSceneId: scene.parentSceneId ? normalizeText(scene.parentSceneId) : null,
     sourceHotspotId: scene.sourceHotspotId ? normalizeText(scene.sourceHotspotId) : null,
     sourceHotspotLabel: scene.sourceHotspotLabel ? normalizeText(scene.sourceHotspotLabel) : null,
+    intro: normalizeText(scene.intro),
+    imagePrompt: normalizeText(scene.imagePrompt, '').slice(0, 2000),
+    scope: scene.scope,
+    hotspots: Array.isArray(scene.hotspots)
+      ? scene.hotspots
+          .map(sanitizeHotspot)
+          .filter((hotspot): hotspot is ExploreKnowledgePoint => hotspot !== null)
+          .slice(0, 30)
+      : [],
+    nextTopics: Array.isArray(scene.nextTopics)
+      ? scene.nextTopics.map((item) => normalizeText(item)).filter(Boolean).slice(0, 12)
+      : [],
   };
 };
 
@@ -62,6 +113,7 @@ export const sanitizeHistory = (value: unknown): DemoHistoryItem[] => {
         name: normalizeText(raw.name, '未命名会话'),
         createdAt: normalizeText(raw.createdAt, new Date().toISOString()),
         prompt: normalizeText(raw.prompt),
+        exploreSessionId: normalizeText(raw.exploreSessionId),
         rootImageUrl: raw.rootImageUrl,
         rootSceneId: normalizeText(raw.rootSceneId),
         activeLeafId: normalizeText(raw.activeLeafId),

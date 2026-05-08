@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { ArrowLeft, ArrowUp, ImagePlus, Loader2, Upload, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, ImagePlus, Loader2, RotateCcw, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import AuthPanel from '@/components/AuthPanel';
@@ -20,12 +20,36 @@ import {
 import {
   buildSceneLineage,
   collectDescendantsOnSpine,
-  createClickFocusHotspot,
   makeId,
 } from '@/lib/scene';
-import type { AuthUser, DemoHistoryItem, GeneratedScene } from '@/types';
+import type {
+  AuthUser,
+  DemoHistoryItem,
+  ExploreKnowledgePoint,
+  ExploreNodePayload,
+  ExploreSessionPayload,
+  GeneratedScene,
+} from '@/types';
 
 const MAX_HISTORY_ITEMS = 20;
+const GUEST_SESSION_LIMIT = 1;
+const GUEST_HISTORY_KEY = 'wuxian_guest_explore_history';
+const GUEST_USAGE_KEY = 'wuxian_guest_explore_usage';
+
+const recommendedTopics = [
+  '鲸鱼的歌声如何在海里传播',
+  '黑洞边缘会发生什么',
+  '丝绸之路如何连接城市',
+  '番茄从田间到餐桌的结构',
+  '雪豹如何在峭壁间捕猎',
+  '雷暴云里面正在发生什么',
+];
+
+const sampleTopics = [
+  '原来鲸鱼的歌声也能像地图一样被科学家读取',
+  '一颗番茄里面藏着运输水分和糖分的路线',
+  '黑洞边缘不是墙，而是一条信息很难回头的边界',
+];
 
 const isPersistedImageUrl = (value: string) =>
   value.startsWith('/api/generated/images/') ||
@@ -38,6 +62,35 @@ const canPersistHistoryItem = (item: DemoHistoryItem) =>
 const normalizeHistory = (items: DemoHistoryItem[]) =>
   items.filter(canPersistHistoryItem).slice(0, MAX_HISTORY_ITEMS);
 
+const readGuestUsage = () => {
+  if (typeof window === 'undefined') return 0;
+  const value = Number(window.localStorage.getItem(GUEST_USAGE_KEY) ?? '0');
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+};
+
+const writeGuestUsage = (value: number) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(GUEST_USAGE_KEY, String(Math.max(0, value)));
+};
+
+const readGuestHistory = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(GUEST_HISTORY_KEY);
+    return normalizeHistory(raw ? (JSON.parse(raw) as DemoHistoryItem[]) : []);
+  } catch {
+    return [];
+  }
+};
+
+const writeGuestHistory = (history: DemoHistoryItem[]) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(
+    GUEST_HISTORY_KEY,
+    JSON.stringify(normalizeHistory(history)),
+  );
+};
+
 const fetchJson = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(url, init);
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
@@ -48,7 +101,7 @@ const fetchJson = async <T,>(url: string, init?: RequestInit): Promise<T> => {
 };
 
 const fetchUserHistory = async () => {
-  const payload = await fetchJson<{ history?: DemoHistoryItem[] }>('/api/history', {
+  const payload = await fetchJson<{ history?: DemoHistoryItem[] }>('/api/explore/history', {
     cache: 'no-store',
   });
   return normalizeHistory(payload.history ?? []);
@@ -80,6 +133,39 @@ interface ProcessingTag {
   thumbnailUrl: string | null;
 }
 
+type ExploreUiStatus =
+  | 'idle'
+  | 'queued'
+  | 'generating-content'
+  | 'generating-image'
+  | 'success'
+  | 'failed';
+
+type FailedAction =
+  | { type: 'root'; topic: string }
+  | {
+      type: 'node';
+      demoId: string;
+      sceneId: string;
+      hotspot: ExploreKnowledgePoint;
+    };
+
+interface CreateExploreSessionResponse {
+  session?: ExploreSessionPayload;
+  node?: ExploreNodePayload;
+  status?: string;
+  error?: string;
+  code?: string;
+  suggestedTopics?: string[];
+}
+
+interface AppendExploreNodeResponse {
+  session?: ExploreSessionPayload;
+  node?: ExploreNodePayload;
+  status?: string;
+  error?: string;
+}
+
 export default function Explorer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emptyUploadRef = useRef<HTMLInputElement>(null);
@@ -89,12 +175,16 @@ export default function Explorer() {
   const [history, setHistory] = useState<DemoHistoryItem[]>([]);
   const [selectedDemoId, setSelectedDemoId] = useState<string | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [userPrompt, setUserPrompt] = useState('我想要一个法国卢浮宫的俯视导览图');
+  const [userPrompt, setUserPrompt] = useState('');
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<'idle' | 'processing'>('idle');
+  const [status, setStatus] = useState<ExploreUiStatus>('idle');
   const [processingTag, setProcessingTag] = useState<ProcessingTag | null>(null);
   const [tagDismissed, setTagDismissed] = useState(false);
   const [clickMarker, setClickMarker] = useState<ClickMarker | null>(null);
+  const [guestUsage, setGuestUsage] = useState(0);
+  const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
+  const [outOfScopeSuggestions, setOutOfScopeSuggestions] = useState<string[]>([]);
+  const [showAuthPanel, setShowAuthPanel] = useState(false);
   // 旧场景 zoom-out 转场：保留旧 scene id + 点击位置作为 transform-origin
   const [transitionFrom, setTransitionFrom] = useState<{
     sceneId: string;
@@ -125,8 +215,13 @@ export default function Explorer() {
     return buildSceneLineage(selectedDemo.scenes, leaf);
   }, [selectedDemo]);
 
-  const isProcessing = status === 'processing';
-  const canGenerate = authUser !== null && userPrompt.trim().length > 0 && !isProcessing;
+  const isProcessing =
+    status === 'queued' ||
+    status === 'generating-content' ||
+    status === 'generating-image';
+  const canUseGuestSession = authUser !== null || guestUsage < GUEST_SESSION_LIMIT;
+  const canGenerate = userPrompt.trim().length > 0 && !isProcessing && canUseGuestSession;
+  const isGuest = authUser === null;
   const isAtRoot = !selectedScene || selectedScene.parentSceneId === null;
   const showClickRing =
     clickMarker !== null &&
@@ -162,6 +257,7 @@ export default function Explorer() {
     const restored = await fetchUserHistory();
     window.queueMicrotask(() => {
       applyUserHistory(user, restored);
+      setShowAuthPanel(false);
       setAuthStatus('ready');
     });
   };
@@ -174,11 +270,12 @@ export default function Explorer() {
         const payload = await fetchJson<{ user: AuthUser | null }>('/api/auth/me', {
           cache: 'no-store',
         });
-        const restored = payload.user ? await fetchUserHistory() : [];
+        const restored = payload.user ? await fetchUserHistory() : readGuestHistory();
         if (cancelled) return;
         window.queueMicrotask(() => {
           if (cancelled) return;
           applyUserHistory(payload.user, restored);
+          setGuestUsage(readGuestUsage());
           setAuthStatus('ready');
         });
       } catch (error) {
@@ -187,7 +284,8 @@ export default function Explorer() {
         toast.error('登录状态读取失败', { description: message });
         window.queueMicrotask(() => {
           if (cancelled) return;
-          applyUserHistory(null, []);
+          applyUserHistory(null, readGuestHistory());
+          setGuestUsage(readGuestUsage());
           setAuthStatus('ready');
         });
       }
@@ -202,7 +300,10 @@ export default function Explorer() {
   const persistHistory = async (nextHistory: DemoHistoryItem[]) => {
     const normalized = normalizeHistory(nextHistory);
     setHistory(normalized);
-    if (!authUser) return normalized;
+    if (!authUser) {
+      writeGuestHistory(normalized);
+      return normalized;
+    }
 
     setHistorySyncStatus('saving');
     try {
@@ -225,13 +326,17 @@ export default function Explorer() {
 
   const handleLogout = async () => {
     if (isProcessing) return;
+    if (!authUser) {
+      setShowAuthPanel(true);
+      return;
+    }
     try {
       await fetchJson<{ ok: boolean }>('/api/auth/logout', { method: 'POST' });
     } catch (error) {
       const message = error instanceof Error ? error.message : '退出失败';
       toast.error('退出登录失败', { description: message });
     } finally {
-      applyUserHistory(null, []);
+      applyUserHistory(null, readGuestHistory());
       setReferenceFile(null);
     }
   };
@@ -320,41 +425,106 @@ export default function Explorer() {
     }
   };
 
-  const handleStartGenerate = async () => {
-    if (!canGenerate) return;
-    setStatus('processing');
+  const buildSceneFromNode = ({
+    node,
+    imageUrl,
+    depth,
+    parentSceneId,
+    sourceHotspot,
+  }: {
+    node: ExploreNodePayload;
+    imageUrl: string;
+    depth: number;
+    parentSceneId: string | null;
+    sourceHotspot?: ExploreKnowledgePoint | null;
+  }): GeneratedScene => ({
+    id: node.id,
+    title: node.title,
+    summary: node.intro,
+    intro: node.intro,
+    imagePrompt: node.imagePrompt,
+    scope: node.scope,
+    hotspots: node.knowledgePoints,
+    nextTopics: node.nextTopics,
+    imageUrl,
+    depth,
+    parentSceneId,
+    sourceHotspotId: sourceHotspot?.id ?? null,
+    sourceHotspotLabel: sourceHotspot?.label ?? null,
+  });
+
+  const handleStartGenerate = async (topicOverride?: string) => {
+    const topic = (topicOverride ?? userPrompt).trim();
+    if (!topic || isProcessing) return;
+    if (!authUser && guestUsage >= GUEST_SESSION_LIMIT) {
+      toast.info('访客试用次数已用完，登录后可以继续探索并保存历史。');
+      setShowAuthPanel(true);
+      return;
+    }
+
+    setUserPrompt(topic);
+    setFailedAction(null);
+    setOutOfScopeSuggestions([]);
+    setStatus('queued');
     setTagDismissed(false);
     setProcessingTag({
       hint: referenceFile
         ? `根据参考图「${referenceFile.name}」生成总览图`
-        : `根据「${userPrompt.trim()}」生成总览图`,
+        : `排队中：准备生成「${topic}」`,
       thumbnailUrl: null,
     });
 
     try {
       const referenceImageUrl = referenceFile ? await readFileAsDataUrl(referenceFile) : null;
+      setStatus('generating-content');
+      setProcessingTag({
+        hint: `正在判断主题范围并生成「${topic}」的结构化知识点`,
+        thumbnailUrl: null,
+      });
 
+      const response = await fetch('/api/explore/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as CreateExploreSessionResponse;
+
+      if (!response.ok || !payload.session || !payload.node) {
+        if (payload.code === 'out_of_scope') {
+          const suggestions = payload.suggestedTopics?.length
+            ? payload.suggestedTopics
+            : recommendedTopics;
+          setOutOfScopeSuggestions(suggestions);
+          setFailedAction({ type: 'root', topic: suggestions[0] ?? topic });
+          toast.info(payload.error ?? '这个主题暂时不在实时探索范围内。');
+          return;
+        }
+        throw new Error(payload.error ?? `请求失败 ${response.status}`);
+      }
+
+      setStatus('generating-image');
+      setProcessingTag({
+        hint: `生成中：正在绘制「${payload.node.title}」百科图版`,
+        thumbnailUrl: null,
+      });
       const rootImageUrl = await generateOverviewImage({
-        prompt: userPrompt.trim(),
+        prompt: payload.node.imagePrompt,
         referenceImageUrl,
       });
 
-      const rootScene: GeneratedScene = {
-        id: makeId('scene'),
-        title: `${userPrompt.trim().slice(0, 18)} 总览`,
-        summary: '点击图片任意位置可继续获取内容。',
+      const rootScene = buildSceneFromNode({
+        node: payload.node,
         imageUrl: rootImageUrl,
         depth: 0,
         parentSceneId: null,
-        sourceHotspotId: null,
-        sourceHotspotLabel: null,
-      };
+      });
 
       const demo: DemoHistoryItem = {
         id: makeId('demo'),
         name: rootScene.title,
         createdAt: new Date().toISOString(),
-        prompt: userPrompt.trim(),
+        prompt: topic,
+        exploreSessionId: payload.session.id,
         rootImageUrl,
         rootSceneId: rootScene.id,
         activeLeafId: rootScene.id,
@@ -363,18 +533,31 @@ export default function Explorer() {
 
       const nextHistory = [demo, ...history].slice(0, MAX_HISTORY_ITEMS);
       void persistHistory(nextHistory);
+      if (!authUser) {
+        const nextUsage = guestUsage + 1;
+        setGuestUsage(nextUsage);
+        writeGuestUsage(nextUsage);
+      }
       clearTransition();
       setSelectedDemoId(demo.id);
       setSelectedSceneId(rootScene.id);
+      setStatus('success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '生成失败';
+      setFailedAction({ type: 'root', topic });
+      setStatus('failed');
       toast.error('总览图生成失败', { description: message });
     } finally {
       finalizeProcessing();
     }
   };
 
-  const handleSceneClick = async (position: { x: number; y: number }) => {
+  const handleSceneClick = () => {
+    if (isProcessing) return;
+    toast.info('请选择图版上的知识点继续探索');
+  };
+
+  const handleKnowledgePointClick = async (hotspot: ExploreKnowledgePoint) => {
     if (isProcessing) {
       toast.info('上一张还在生成，请稍等');
       return;
@@ -383,43 +566,73 @@ export default function Explorer() {
       toast.info('请先生成一张总览图');
       return;
     }
+    if (!selectedDemo.exploreSessionId) {
+      toast.info('这条旧记录没有结构化知识点，请重新生成一次主题。');
+      return;
+    }
 
     const marker: ClickMarker = {
       sceneId: selectedScene.id,
-      x: position.x,
-      y: position.y,
+      x: hotspot.position.x,
+      y: hotspot.position.y,
       parentSceneTitle: selectedScene.title,
     };
     setClickMarker(marker);
     setTagDismissed(false);
-    setStatus('processing');
+    setFailedAction(null);
+    setStatus('queued');
     setProcessingTag({
-      hint: `正在围绕「${selectedScene.title}」点击区域生成细节图`,
+      hint: `排队中：准备进入「${hotspot.label}」`,
       thumbnailUrl: selectedScene.imageUrl,
     });
 
     try {
-      const hotspot = createClickFocusHotspot(position, selectedScene.title);
+      setStatus('generating-content');
+      setProcessingTag({
+        hint: `正在生成「${hotspot.label}」的下一层知识点`,
+        thumbnailUrl: selectedScene.imageUrl,
+      });
+      const payload = await fetchJson<AppendExploreNodeResponse>(
+        `/api/explore/sessions/${encodeURIComponent(selectedDemo.exploreSessionId)}/nodes`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parentNodeId: selectedScene.id,
+            pointId: hotspot.id,
+          }),
+        },
+      );
+      if (!payload.session || !payload.node) {
+        throw new Error(payload.error ?? '下一层结构化内容生成失败');
+      }
+
       const croppedImage = await cropImageToHotspot(
         selectedScene.imageUrl,
         hotspot,
       );
 
+      setStatus('generating-image');
+      setProcessingTag({
+        hint: `生成中：正在绘制「${payload.node.title}」`,
+        thumbnailUrl: croppedImage,
+      });
       const childImageUrl = await generateFocusedSceneImage({
         sourceImageUrl: croppedImage,
-        hotspot,
+        hotspot: {
+          ...hotspot,
+          label: payload.node.title,
+          generationPrompt: payload.node.imagePrompt,
+        },
       });
 
-      const childScene: GeneratedScene = {
-        id: makeId('scene'),
-        title: `${selectedScene.title} · 细节`,
-        summary: `基于"${selectedScene.title}"中点击区域放大生成。`,
+      const childScene = buildSceneFromNode({
+        node: payload.node,
         imageUrl: childImageUrl,
         depth: selectedScene.depth + 1,
         parentSceneId: selectedScene.id,
-        sourceHotspotId: hotspot.id,
-        sourceHotspotLabel: hotspot.label,
-      };
+        sourceHotspot: hotspot,
+      });
 
       // 如果用户在中间节点（selectedScene 不是 spine 末端）发起重新生成，
       // 截断 selectedScene 之后到 activeLeaf 的所有旧场景。
@@ -447,10 +660,18 @@ export default function Explorer() {
       void persistHistory(nextHistory);
       // 触发 flipbook 风 zoom-out 转场：旧 scene 以点击位置为中心撑大淡出，
       // 新 scene 在底层直接显示，模拟"钻进点击区域"。
-      startTransition(selectedScene.id, position.x, position.y);
+      startTransition(selectedScene.id, hotspot.position.x, hotspot.position.y);
       setSelectedSceneId(childScene.id);
+      setStatus('success');
     } catch (error) {
       const message = error instanceof Error ? error.message : '生成失败';
+      setFailedAction({
+        type: 'node',
+        demoId: selectedDemo.id,
+        sceneId: selectedScene.id,
+        hotspot,
+      });
+      setStatus('failed');
       toast.error('细节图生成失败', { description: message });
     } finally {
       finalizeProcessing();
@@ -460,6 +681,25 @@ export default function Explorer() {
   const triggerUpload = () => fileInputRef.current?.click();
   const triggerEmptyUpload = () => emptyUploadRef.current?.click();
 
+  const handleTopicSelect = (topic: string) => {
+    setUserPrompt(topic);
+    setOutOfScopeSuggestions([]);
+  };
+
+  const handleRetry = () => {
+    if (!failedAction || isProcessing) return;
+    if (failedAction.type === 'root') {
+      void handleStartGenerate(failedAction.topic);
+      return;
+    }
+
+    if (selectedDemoId !== failedAction.demoId) {
+      setSelectedDemoId(failedAction.demoId);
+    }
+    setSelectedSceneId(failedAction.sceneId);
+    void handleKnowledgePointClick(failedAction.hotspot);
+  };
+
   if (authStatus === 'loading') {
     return (
       <div className="flex h-screen w-screen items-center justify-center text-muted-foreground">
@@ -468,8 +708,13 @@ export default function Explorer() {
     );
   }
 
-  if (!authUser) {
-    return <AuthPanel onAuthenticated={handleAuthenticated} />;
+  if (showAuthPanel && !authUser) {
+    return (
+      <AuthPanel
+        onAuthenticated={handleAuthenticated}
+        onCancel={() => setShowAuthPanel(false)}
+      />
+    );
   }
 
   return (
@@ -483,9 +728,11 @@ export default function Explorer() {
           onNewSession={handleNewSession}
           onDeleteDemo={handleDeleteDemo}
           onClearHistory={handleClearHistory}
-          username={authUser.username}
+          username={authUser?.username ?? `访客试用 ${guestUsage}/${GUEST_SESSION_LIMIT}`}
+          isGuest={isGuest}
           isHistorySaving={historySyncStatus === 'saving'}
           onLogout={handleLogout}
+          onLoginRequest={() => setShowAuthPanel(true)}
         />
 
         <main className="flex flex-1 flex-col overflow-hidden">
@@ -586,6 +833,13 @@ export default function Explorer() {
                 allowPanZoom
                 imageFit="contain"
               >
+                {selectedScene.hotspots && selectedScene.hotspots.length > 0 && (
+                  <KnowledgePointLayer
+                    points={selectedScene.hotspots}
+                    disabled={isProcessing}
+                    onSelect={handleKnowledgePointClick}
+                  />
+                )}
                 {showClickRing && clickMarker && (
                   <ClickRingMarker
                     x={clickMarker.x}
@@ -599,7 +853,18 @@ export default function Explorer() {
                 onUpload={triggerEmptyUpload}
                 fileInputRef={emptyUploadRef}
                 onFileChange={handleFileChange}
+                recommendedTopics={outOfScopeSuggestions.length ? outOfScopeSuggestions : recommendedTopics}
+                sampleTopics={sampleTopics}
+                guestUsage={guestUsage}
+                guestLimit={GUEST_SESSION_LIMIT}
+                isGuest={isGuest}
+                onTopicSelect={handleTopicSelect}
+                onGenerateTopic={(topic) => void handleStartGenerate(topic)}
               />
+            )}
+
+            {!isProcessing && failedAction && (
+              <FailureRetryCard onRetry={handleRetry} />
             )}
 
             {isProcessing && processingTag && !tagDismissed && (
@@ -666,6 +931,43 @@ function ClickRingMarker({
   );
 }
 
+function KnowledgePointLayer({
+  points,
+  disabled,
+  onSelect,
+}: {
+  points: ExploreKnowledgePoint[];
+  disabled: boolean;
+  onSelect: (point: ExploreKnowledgePoint) => void;
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {points.slice(0, 30).map((point) => (
+        <button
+          key={point.id}
+          type="button"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(point);
+          }}
+          className="group pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/80 bg-foreground text-[10px] font-semibold text-background shadow-[0_8px_18px_rgba(0,0,0,0.28)] transition hover:scale-110 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            left: `${point.position.x}%`,
+            top: `${point.position.y}%`,
+          }}
+          title={point.description ?? point.label}
+        >
+          {point.index ?? point.badge ?? '•'}
+          <span className="pointer-events-none absolute left-1/2 top-full mt-1 hidden min-w-max -translate-x-1/2 rounded-md border border-foreground/10 bg-card/95 px-2 py-1 text-[11px] font-medium text-foreground shadow-lg group-hover:block">
+            {point.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ProcessingTagCard({
   hint,
   thumbnailUrl,
@@ -704,23 +1006,72 @@ function ProcessingTagCard({
   );
 }
 
+function FailureRetryCard({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="absolute right-6 top-6 flex w-[300px] items-start gap-3 rounded-2xl border border-destructive/20 bg-card/95 px-4 py-3 shadow-[0_18px_40px_-16px_rgba(40,28,16,0.45)] backdrop-blur">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-foreground">生成没有完成</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          可能是模型超时或服务繁忙，可以从刚才的位置重新尝试。
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background transition hover:bg-foreground/85"
+        title="重试"
+      >
+        <RotateCcw className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 function EmptyState({
   onUpload,
   fileInputRef,
   onFileChange,
+  recommendedTopics,
+  sampleTopics,
+  guestUsage,
+  guestLimit,
+  isGuest,
+  onTopicSelect,
+  onGenerateTopic,
 }: {
   onUpload: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  recommendedTopics: string[];
+  sampleTopics: string[];
+  guestUsage: number;
+  guestLimit: number;
+  isGuest: boolean;
+  onTopicSelect: (topic: string) => void;
+  onGenerateTopic: (topic: string) => void;
 }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6 px-6 text-center">
-        <h2 className="font-handwriting text-4xl leading-snug text-foreground sm:text-5xl">
-          点击图片任意位置
-          <br />
-          可继续获取内容。
-        </h2>
+    <div className="absolute inset-0 overflow-auto px-6 py-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-8">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            real-time exploration
+          </p>
+          <h2 className="mt-4 font-handwriting text-4xl leading-snug text-foreground sm:text-6xl">
+            从一个问题进入一张百科图，
+            <br />
+            再沿着知识点继续深入。
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
+            首次图版会提供 20-30 个可点击知识点。生成内容以图片百科为主，不是普通聊天回答。
+          </p>
+          {isGuest && (
+            <p className="mt-3 inline-flex rounded-full border border-border bg-background/70 px-3 py-1 text-xs text-muted-foreground">
+              访客试用 {guestUsage}/{guestLimit} 次，登录后保存探索历史。
+            </p>
+          )}
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -736,9 +1087,40 @@ function EmptyState({
           <ImagePlus className="h-4 w-4" />
           上传图片
         </button>
-        <p className="text-xs text-foreground/50">
-          点击图片任意位置可继续获取内容。
-        </p>
+
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <section>
+            <h3 className="text-sm font-semibold text-foreground">推荐探索入口</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {recommendedTopics.slice(0, 6).map((topic) => (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => onGenerateTopic(topic)}
+                  className="rounded-lg border border-border/70 bg-card/70 px-4 py-3 text-left text-sm leading-6 transition hover:border-primary/50 hover:bg-background"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-foreground">已生成样例的发现感</h3>
+            <div className="mt-3 flex flex-col gap-2">
+              {sampleTopics.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => onTopicSelect(item)}
+                  className="rounded-lg border border-border/60 bg-background/50 px-4 py-3 text-left text-sm leading-6 text-muted-foreground transition hover:text-foreground"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

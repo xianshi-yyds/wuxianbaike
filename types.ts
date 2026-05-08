@@ -14,6 +14,43 @@ export interface ImageHotspot {
   index?: number;
 }
 
+export type ExploreScope = 'science' | 'history' | 'animal' | 'life';
+
+export type ExploreSessionStatus =
+  | 'queued'
+  | 'generating'
+  | 'succeeded'
+  | 'failed'
+  | 'out_of_scope';
+
+export interface ExploreKnowledgePoint extends ImageHotspot {
+  nextTopic: string;
+  category: string;
+}
+
+export interface ExploreNodePayload {
+  id: string;
+  title: string;
+  intro: string;
+  imagePrompt: string;
+  scope: ExploreScope;
+  path: string[];
+  knowledgePoints: ExploreKnowledgePoint[];
+  nextTopics: string[];
+  status: ExploreSessionStatus;
+}
+
+export interface ExploreSessionPayload {
+  id: string;
+  topic: string;
+  scope: ExploreScope;
+  status: ExploreSessionStatus;
+  createdAt: string;
+  updatedAt: string;
+  activeNodeId: string;
+  nodes: ExploreNodePayload[];
+}
+
 export interface GeneratedScene {
   id: string;
   title: string;
@@ -23,6 +60,11 @@ export interface GeneratedScene {
   parentSceneId: string | null;
   sourceHotspotId: string | null;
   sourceHotspotLabel: string | null;
+  intro?: string;
+  imagePrompt?: string;
+  scope?: ExploreScope;
+  hotspots?: ExploreKnowledgePoint[];
+  nextTopics?: string[];
 }
 
 export interface DemoHistoryItem {
@@ -30,6 +72,7 @@ export interface DemoHistoryItem {
   name: string;
   createdAt: string;
   prompt: string;
+  exploreSessionId?: string;
   rootImageUrl: string;
   rootSceneId: string;
   /** 当前 spine 的最深节点；breadcrumb 由它向上回溯 */

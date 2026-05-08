@@ -12,11 +12,12 @@ import type { AuthUser } from '@/types';
 
 interface AuthPanelProps {
   onAuthenticated: (user: AuthUser) => Promise<void> | void;
+  onCancel?: () => void;
 }
 
 type AuthMode = 'login' | 'register';
 
-export default function AuthPanel({ onAuthenticated }: AuthPanelProps) {
+export default function AuthPanel({ onAuthenticated, onCancel }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -122,6 +123,16 @@ export default function AuthPanel({ onAuthenticated }: AuthPanelProps) {
             {mode === 'login' ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
             {isSubmitting ? '处理中' : mode === 'login' ? '登录' : '创建账号'}
           </Button>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-9 text-sm text-muted-foreground transition hover:text-foreground"
+              disabled={isSubmitting}
+            >
+              继续访客试用
+            </button>
+          )}
         </form>
       </div>
     </div>

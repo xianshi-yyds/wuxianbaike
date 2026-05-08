@@ -14,8 +14,10 @@ interface HistorySidebarProps {
   onDeleteDemo: (demoId: string) => void;
   onClearHistory: () => void;
   username: string;
+  isGuest: boolean;
   isHistorySaving: boolean;
   onLogout: () => void;
+  onLoginRequest: () => void;
 }
 
 const formatRelative = (iso: string) => {
@@ -38,8 +40,10 @@ export default function HistorySidebar({
   onDeleteDemo,
   onClearHistory,
   username,
+  isGuest,
   isHistorySaving,
   onLogout,
+  onLoginRequest,
 }: HistorySidebarProps) {
   return (
     <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col border-r border-border/60 bg-card/40 backdrop-blur-sm">
@@ -75,14 +79,25 @@ export default function HistorySidebar({
           >
             <Home className="h-3.5 w-3.5" />
           </a>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-md p-1 text-foreground/45 transition hover:bg-foreground/10 hover:text-foreground"
-            title="退出登录"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </button>
+          {isGuest ? (
+            <button
+              type="button"
+              onClick={onLoginRequest}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-foreground/60 transition hover:bg-foreground/10 hover:text-foreground"
+              title="登录后保存探索历史"
+            >
+              登录
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="rounded-md p-1 text-foreground/45 transition hover:bg-foreground/10 hover:text-foreground"
+              title="退出登录"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <Button
           variant="default"
